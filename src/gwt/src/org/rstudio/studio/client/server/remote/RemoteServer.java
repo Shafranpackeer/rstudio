@@ -7131,6 +7131,8 @@ public class RemoteServer implements Server
                                String model,
                                String baseUrl,
                                String apiKey,
+                               boolean jevEnabled,
+                               String jevApiKey,
                                ServerRequestCallback<AiChatConfig> requestCallback)
    {
       JSONArray params = new JSONArrayBuilder()
@@ -7139,7 +7141,19 @@ public class RemoteServer implements Server
             .add(baseUrl)
             .get();
       params.set(3, apiKey == null ? JSONNull.getInstance() : new JSONString(apiKey));
+      params.set(4, JSONBoolean.getInstance(jevEnabled));
+      params.set(5, jevApiKey == null ? JSONNull.getInstance() : new JSONString(jevApiKey));
       sendRequest(RPC_SCOPE, "ai_chat_set_config", params, requestCallback);
+   }
+
+   @Override
+   public void aiChatJevRequest(String body,
+                                ServerRequestCallback<AiChatHttpResult> requestCallback)
+   {
+      JSONArray params = new JSONArrayBuilder()
+            .add(body)
+            .get();
+      sendRequest(RPC_SCOPE, "ai_chat_jev_request", params, requestCallback);
    }
 
    @Override

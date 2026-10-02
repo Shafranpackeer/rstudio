@@ -348,7 +348,119 @@ public class AiChatProtocol
       return /not support|unsupported|does not support|doesn't support|not allowed|not enabled|requires|unknown|unrecognized|unexpected|extra|invalid|not permitted/.test(text);
    }-*/;
 
-   // Conversation helpers ---------------------------------------------------
+   // Jev safety check -------------------------------------------------------
+
+   /**
+    * Builds a Jev (TypeSafe AI) System One request that rates the risk of a
+    * tool call. Each question is a "noul" (a yes probability from 0 to 1);
+    * see parseJevRisks(). Long file contents are trimmed, since the question
+    * is about what the action does rather than every line it writes.
+    */
+   public static native String buildJevRiskRequest(String toolName,
+                                                   JavaScriptObject input) /*-{
+      var trimmed = {};
+      for (var key in input) {
+         var value = input[key];
+         if (typeof value === "string" && value.length > 6000)
+            value = value.substring(0, 6000) + "\n... [trimmed]";
+         trimmed[key] = value;
+      }
+
+      var descriptions = {
+         write_file: "Create a file, or replace a file's entire contents.",
+         edit_file: "Replace one piece of text in an existing file.",
+         run_r_code: "Run R code in the user's R session.",
+         insert_text_in_editor: "Insert text into the document open in the editor."
+      };
+
+      var noul = function(instructions) {
+         return { type: "noul", instructions: instructions };
+      };
+
+      return JSON.stringify({
+         state: {
+            action: toolName,
+            description: descriptions[toolName] || toolName,
+            input: trimmed
+         },
+         questions: {
+            deletes_data: noul("Would carrying out this action delete, overwrite, or irreversibly change existing files or data (including removing objects from the R session)?"),
+            installs_software: noul("Would carrying out this action install, update, or remove software or packages?"),
+            uses_network: noul("Would carrying out this action access the internet, download anything, or send data to another computer?"),
+            runs_system_commands: noul("Would carrying out this action run operating-system shell commands or change system settings?")
+         }
+      });
+   }-*/;
+
+   /**
+    * Parses a Jev response into { risks: { id: probability } }, or
+    * { error } when the request failed or the answers can't be read.
+    */
+   public static native JavaScriptObject parseJevRisks(int status, String body) /*-{
+      var data = null;
+      try {
+         data = JSON.parse(body);
+      } catch (e) {
+         return { error: "HTTP " + status + ": " + (body ? body.substring(0, 300) : "(empty response)") };
+      }
+
+      if (status < 200 || status >= 300 || (data && data.error)) {
+         var message = data && data.error
+            ? (typeof data.error === "string" ? data.error : (data.error.message || JSON.stringify(data.error)))
+            : body.substring(0, 300);
+         return { error: "HTTP " + status + ": " + message };
+      }
+
+      // a noul answer is a yes probability; accept it bare or wrapped
+      var probability = function(answer) {
+         if (typeof answer === "number")
+            return answer;
+         if (!answer || typeof answer !== "object")
+            return null;
+         var candidates = [answer.noul, answer.probability, answer.yes, answer.value];
+         for (var i = 0; i < candidates.length; i++)
+            if (typeof candidates[i] === "number")
+               return candidates[i];
+         return null;
+      };
+
+      var answers = (data && data.answers) || {};
+      var risks = {};
+      var found = false;
+      for (var id in answers) {
+         var p = probability(answers[id]);
+         if (p !== null) {
+            risks[id] = p;
+            found = true;
+         }
+      }
+
+      if (!found)
+         return { error: "Unexpected response: " + body.substring(0, 300) };
+      return { risks: risks };
+   }-*/;
+
+   /** The ids of risks at or above the threshold, highest first. */
+   public static native JsArray<JavaScriptObject> getFlaggedRisks(JavaScriptObject result,
+                                                                  double threshold) /*-{
+      var flagged = [];
+      var risks = result.risks || {};
+      for (var id in risks)
+         if (risks[id] >= threshold)
+            flagged.push({ id: id, probability: risks[id] });
+      flagged.sort(function(a, b) { return b.probability - a.probability; });
+      return flagged;
+   }-*/;
+
+   public static native String getRiskId(JavaScriptObject risk) /*-{
+      return risk.id;
+   }-*/;
+
+   public static native double getRiskProbability(JavaScriptObject risk) /*-{
+      return risk.probability;
+   }-*/;
+
+      // Conversation helpers ---------------------------------------------------
 
    public static native JavaScriptObject userMessage(String text) /*-{
       return { role: "user", content: text };

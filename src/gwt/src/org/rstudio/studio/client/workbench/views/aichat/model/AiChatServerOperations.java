@@ -23,13 +23,15 @@ public interface AiChatServerOperations
    void aiChatGetConfig(ServerRequestCallback<AiChatConfig> requestCallback);
 
    /**
-    * Saves the provider settings. Pass null for apiKey to keep the saved key,
-    * or an empty string to remove it.
+    * Saves the provider settings. Pass null for apiKey (or jevApiKey) to keep
+    * the saved key, or an empty string to remove it.
     */
    void aiChatSetConfig(String provider,
                         String model,
                         String baseUrl,
                         String apiKey,
+                        boolean jevEnabled,
+                        String jevApiKey,
                         ServerRequestCallback<AiChatConfig> requestCallback);
 
    /**
@@ -38,6 +40,13 @@ public interface AiChatServerOperations
     */
    void aiChatSendRequest(String body,
                           ServerRequestCallback<AiChatHttpResult> requestCallback);
+
+   /**
+    * Sends a Jev (TypeSafe AI) System One request body; the session adds the
+    * model and TypeSafe key.
+    */
+   void aiChatJevRequest(String body,
+                         ServerRequestCallback<AiChatHttpResult> requestCallback);
 
    void aiChatExecuteTool(String name,
                           JavaScriptObject input,

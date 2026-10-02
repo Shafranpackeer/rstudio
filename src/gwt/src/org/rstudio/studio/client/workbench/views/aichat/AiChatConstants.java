@@ -165,6 +165,50 @@ public interface AiChatConstants extends com.google.gwt.i18n.client.Messages
    @DefaultMessage("In Jan, open Settings > Local API Server and click Start Server. If you set an API key there, enter the same key below.")
    String janNote();
 
+   // Jev safety check
+
+   @DefaultMessage("Safety check with Jev (TypeSafe AI)")
+   String jevSectionLabel();
+
+   @DefaultMessage("Check file edits and R code with Jev before they run")
+   String jevEnable();
+
+   @DefaultMessage("Jev is a fast decision model that rates each action for risk: deleting or overwriting data, installing software, network access, and system commands. Risky actions are flagged and always ask for approval, even with Auto-approve on. Uses your own TypeSafe API key; the action''s details are sent to TypeSafe for the check.")
+   String jevHelp();
+
+   @DefaultMessage("TypeSafe API key:")
+   String jevApiKeyLabel();
+
+   @DefaultMessage("Remove saved TypeSafe API key")
+   String jevRemoveApiKey();
+
+   @DefaultMessage("A TypeSafe API key is required to turn on the Jev safety check.")
+   String jevKeyRequired();
+
+   @DefaultMessage("Checking with Jev...")
+   String jevChecking();
+
+   @DefaultMessage("Jev: low risk")
+   String jevLowRisk();
+
+   @DefaultMessage("Jev flagged: {0}")
+   String jevFlagged(String risks);
+
+   @DefaultMessage("Jev check unavailable ({0}); asking for approval.")
+   String jevUnavailable(String error);
+
+   @DefaultMessage("may delete or overwrite data")
+   String riskDeletesData();
+
+   @DefaultMessage("may install or remove software")
+   String riskInstallsSoftware();
+
+   @DefaultMessage("may use the network")
+   String riskUsesNetwork();
+
+   @DefaultMessage("may run system commands")
+   String riskRunsSystemCommands();
+
    @DefaultMessage("Service:")
    String serviceLabel();
 

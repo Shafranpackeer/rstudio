@@ -16,6 +16,7 @@ package org.rstudio.studio.client.workbench.views.aichat;
 
 import org.rstudio.core.client.FilePosition;
 import org.rstudio.core.client.StringUtil;
+import org.rstudio.core.client.CommandWithArg;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.common.filetypes.FileTypeRegistry;
@@ -72,6 +73,12 @@ public class AiChatPresenter extends BasePresenter
          void setRunning();
          void setResult(String result, boolean success);
          void setDenied();
+
+         /** Jev's risk check is in progress. */
+         void setChecking();
+
+         /** Shows Jev's verdict; flagged verdicts are highlighted. */
+         void setRiskAssessment(String text, boolean flagged);
       }
 
       void setObserver(Observer observer);
@@ -198,6 +205,8 @@ public class AiChatPresenter extends BasePresenter
                result.model,
                result.baseUrl,
                result.apiKey,
+               result.jevEnabled,
+               result.jevApiKey,
                new ServerRequestCallback<AiChatConfig>()
                {
                   @Override
@@ -502,7 +511,36 @@ public class AiChatPresenter extends BasePresenter
 
       final Command next = () -> runToolCalls(calls, index + 1, generation);
 
-      if (AiChatProtocol.requiresApproval(name) && !display_.isAutoApprove())
+      if (!AiChatProtocol.requiresApproval(name))
+      {
+         view.setRunning();
+         executeTool(call, view, next, generation);
+         return;
+      }
+
+      // with the Jev safety check on, rate the action first; flagged actions
+      // always ask, even with auto-approve on
+      if (config_ != null && config_.isJevEnabled())
+      {
+         view.setChecking();
+         checkWithJev(name, input, view, generation, (flagged) ->
+            approveOrRun(call, view, next, generation, flagged));
+         return;
+      }
+
+      approveOrRun(call, view, next, generation, false);
+   }
+
+   private void approveOrRun(final JavaScriptObject call,
+                             final Display.ToolCallView view,
+                             final Command next,
+                             final int generation,
+                             boolean mustAsk)
+   {
+      if (generation != generation_)
+         return;
+
+      if (mustAsk || !display_.isAutoApprove())
       {
          pendingApproval_ = view;
          view.requestApproval(
@@ -529,6 +567,89 @@ public class AiChatPresenter extends BasePresenter
          view.setRunning();
          executeTool(call, view, next, generation);
       }
+   }
+
+   /**
+    * Asks Jev to rate an action's risk, shows the verdict on the tool card,
+    * and calls back with whether the action must be approved by hand. When
+    * Jev can't be reached the action is treated as needing approval.
+    */
+   private void checkWithJev(String name,
+                             JavaScriptObject input,
+                             final Display.ToolCallView view,
+                             final int generation,
+                             final CommandWithArg<Boolean> onChecked)
+   {
+      String body = AiChatProtocol.buildJevRiskRequest(name, input);
+      server_.aiChatJevRequest(body, new ServerRequestCallback<AiChatHttpResult>()
+      {
+         @Override
+         public void onResponseReceived(AiChatHttpResult result)
+         {
+            if (generation != generation_)
+               return;
+
+            String error = result.getError();
+            JavaScriptObject parsed = null;
+            if (StringUtil.isNullOrEmpty(error))
+            {
+               parsed = AiChatProtocol.parseJevRisks(result.getStatus(), result.getBody());
+               error = AiChatProtocol.getError(parsed);
+            }
+
+            if (!StringUtil.isNullOrEmpty(error))
+            {
+               view.setRiskAssessment(constants_.jevUnavailable(error), true);
+               onChecked.execute(true);
+               return;
+            }
+
+            JsArray<JavaScriptObject> flagged =
+                  AiChatProtocol.getFlaggedRisks(parsed, JEV_RISK_THRESHOLD);
+            if (flagged.length() == 0)
+            {
+               view.setRiskAssessment(constants_.jevLowRisk(), false);
+               onChecked.execute(false);
+               return;
+            }
+
+            StringBuilder risks = new StringBuilder();
+            for (int i = 0; i < flagged.length(); i++)
+            {
+               if (i > 0)
+                  risks.append(", "); //$NON-NLS-1$
+               JavaScriptObject risk = flagged.get(i);
+               risks.append(riskLabel(AiChatProtocol.getRiskId(risk)))
+                    .append(" (") //$NON-NLS-1$
+                    .append(Math.round(AiChatProtocol.getRiskProbability(risk) * 100))
+                    .append("%)"); //$NON-NLS-1$
+            }
+            view.setRiskAssessment(constants_.jevFlagged(risks.toString()), true);
+            onChecked.execute(true);
+         }
+
+         @Override
+         public void onError(ServerError error)
+         {
+            if (generation != generation_)
+               return;
+            view.setRiskAssessment(constants_.jevUnavailable(error.getUserMessage()), true);
+            onChecked.execute(true);
+         }
+      });
+   }
+
+   private String riskLabel(String id)
+   {
+      if (StringUtil.equals(id, "deletes_data")) //$NON-NLS-1$
+         return constants_.riskDeletesData();
+      if (StringUtil.equals(id, "installs_software")) //$NON-NLS-1$
+         return constants_.riskInstallsSoftware();
+      if (StringUtil.equals(id, "uses_network")) //$NON-NLS-1$
+         return constants_.riskUsesNetwork();
+      if (StringUtil.equals(id, "runs_system_commands")) //$NON-NLS-1$
+         return constants_.riskRunsSystemCommands();
+      return id;
    }
 
    private void executeTool(final JavaScriptObject call,
@@ -795,6 +916,9 @@ public class AiChatPresenter extends BasePresenter
    }
 
    private static final int MAX_STEPS = 25;
+
+   // a Jev "yes" probability at or above this flags the action as risky
+   private static final double JEV_RISK_THRESHOLD = 0.5;
    private static final int MAX_DOCUMENT_LINES = 2000;
 
    private final Display display_;

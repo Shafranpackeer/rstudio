@@ -490,7 +490,27 @@ public class AiChatPane extends WorkbenchPane implements AiChatPresenter.Display
          header.setTitle(constants_.showDetails());
          add(header);
 
+         // Jev's risk verdict, when the safety check is on
+         risk_ = new Label();
+         risk_.addStyleName(RES.styles().toolRisk());
+         risk_.setVisible(false);
+         add(risk_);
+
          add(details_);
+      }
+
+      @Override
+      public void setChecking()
+      {
+         toolStatus_.setText(constants_.jevChecking());
+      }
+
+      @Override
+      public void setRiskAssessment(String text, boolean flagged)
+      {
+         risk_.setText(text);
+         risk_.setStyleName(RES.styles().toolRiskFlagged(), flagged);
+         risk_.setVisible(true);
       }
 
       @Override
@@ -558,6 +578,7 @@ public class AiChatPane extends WorkbenchPane implements AiChatPresenter.Display
       private final Label toolStatus_;
       private final FlowPanel details_;
       private FlowPanel approval_;
+      private Label risk_;
    }
 
    // Resources --------------------------------------------------------------
@@ -583,6 +604,8 @@ public class AiChatPane extends WorkbenchPane implements AiChatPresenter.Display
       String toolName();
       String toolSummary();
       String toolStatus();
+      String toolRisk();
+      String toolRiskFlagged();
       String toolDetails();
       String toolDetailsLabel();
       String toolApproval();

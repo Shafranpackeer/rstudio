@@ -35,6 +35,13 @@ public class AiChatConfig extends JavaScriptObject
    public final native String getApiKeySource() /*-{ return this.api_key_source || "none"; }-*/;
    public final native String getApiKeyEnvVar() /*-{ return this.api_key_env_var || ""; }-*/;
 
+   /** Whether actions are risk-checked with Jev (TypeSafe AI) before they run. */
+   public final native boolean isJevEnabled() /*-{ return !!this.jev_enabled; }-*/;
+   public final native boolean jevHasApiKey() /*-{ return !!this.jev_has_api_key; }-*/;
+
+   /** One of "saved", "environment", or "none". */
+   public final native String getJevApiKeySource() /*-{ return this.jev_api_key_source || "none"; }-*/;
+
    /**
     * True when a key is saved for the given key slot: the provider name for
     * Anthropic and OpenAI, or "custom|<base url>" for custom endpoints (see

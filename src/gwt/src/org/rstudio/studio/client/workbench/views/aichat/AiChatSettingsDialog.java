@@ -36,12 +36,15 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
 {
    public static class Result
    {
-      public Result(String provider, String model, String baseUrl, String apiKey)
+      public Result(String provider, String model, String baseUrl, String apiKey,
+                    boolean jevEnabled, String jevApiKey)
       {
          this.provider = provider;
          this.model = model;
          this.baseUrl = baseUrl;
          this.apiKey = apiKey;
+         this.jevEnabled = jevEnabled;
+         this.jevApiKey = jevApiKey;
       }
 
       public final String provider;
@@ -50,6 +53,11 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
 
       /** null keeps the saved key, "" removes it, anything else replaces it. */
       public final String apiKey;
+
+      public final boolean jevEnabled;
+
+      /** As for apiKey: null keeps, "" removes, anything else replaces. */
+      public final String jevApiKey;
    }
 
    public AiChatSettingsDialog(AiChatConfig config,
@@ -108,6 +116,34 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
       toolsHelp_.getElement().getStyle().setFontSize(11, Unit.PX);
       toolsHelp_.getElement().getStyle().setFontWeight(com.google.gwt.dom.client.Style.FontWeight.BOLD);
 
+      jevEnabled_ = new CheckBox(constants_.jevEnable());
+      jevEnabled_.setValue(config.isJevEnabled());
+      jevEnabled_.addValueChangeHandler(event -> updateJevState());
+
+      jevApiKey_ = new PasswordTextBox();
+      jevApiKey_.setWidth("300px");
+      jevApiKey_.getElement().setAttribute("autocomplete", "off");
+      jevApiKeyLabel_ = new FormLabel(constants_.jevApiKeyLabel(), jevApiKey_);
+
+      jevKeyStatus_ = new Label();
+      jevKeyStatus_.getElement().getStyle().setFontSize(11, Unit.PX);
+      jevKeyStatus_.getElement().getStyle().setOpacity(0.8);
+      String jevSource = config.getJevApiKeySource();
+      if (StringUtil.equals(jevSource, "saved"))
+         jevKeyStatus_.setText(constants_.apiKeySaved());
+      else if (StringUtil.equals(jevSource, "environment"))
+         jevKeyStatus_.setText(constants_.apiKeyFromEnvironment("TYPESAFE_API_KEY")); //$NON-NLS-1$
+      else
+         jevKeyStatus_.setText(constants_.apiKeyMissing("TYPESAFE_API_KEY")); //$NON-NLS-1$
+
+      jevRemoveKey_ = new CheckBox(constants_.jevRemoveApiKey());
+      jevRemoveKey_.setVisible(StringUtil.equals(jevSource, "saved"));
+
+      jevHelp_ = new Label(constants_.jevHelp());
+      jevHelp_.getElement().getStyle().setProperty("maxWidth", "380px");
+      jevHelp_.getElement().getStyle().setFontSize(11, Unit.PX);
+      updateJevState();
+
       customHelp_ = new Label(constants_.customHelp());
       customHelp_.getElement().getStyle().setProperty("maxWidth", "380px");
       customHelp_.getElement().getStyle().setMarginTop(8, Unit.PX);
@@ -157,6 +193,17 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
       panel.add(toolsHelp_);
       panel.add(customHelp_);
 
+      Label jevHeader = new Label(constants_.jevSectionLabel());
+      jevHeader.getElement().getStyle().setFontWeight(com.google.gwt.dom.client.Style.FontWeight.BOLD);
+      jevHeader.getElement().getStyle().setMarginTop(12, Unit.PX);
+      panel.add(jevHeader);
+      panel.add(jevEnabled_);
+      panel.add(jevHelp_);
+      panel.add(jevApiKeyLabel_);
+      panel.add(jevApiKey_);
+      panel.add(jevKeyStatus_);
+      panel.add(jevRemoveKey_);
+
       Label storageHelp = new Label(constants_.keyStorageHelp());
       storageHelp.getElement().getStyle().setProperty("maxWidth", "380px");
       storageHelp.getElement().getStyle().setMarginTop(8, Unit.PX);
@@ -178,10 +225,21 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
       else
          keyValue = null;
 
+      String jevKey = jevApiKey_.getText().trim();
+      String jevKeyValue;
+      if (!jevKey.isEmpty())
+         jevKeyValue = jevKey;
+      else if (jevRemoveKey_.isVisible() && jevRemoveKey_.getValue())
+         jevKeyValue = "";
+      else
+         jevKeyValue = null;
+
       return new Result(selectedProvider(),
                         model_.getText().trim(),
                         baseUrl_.getText().trim(),
-                        keyValue);
+                        keyValue,
+                        jevEnabled_.getValue(),
+                        jevKeyValue);
    }
 
    @Override
@@ -194,7 +252,29 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
                constants_.settingsCaption(), constants_.modelRequired());
          return false;
       }
+
+      // the check can't run without a key; say so now rather than on the
+      // first action
+      boolean jevKeyAvailable =
+            (result.jevApiKey != null && !result.jevApiKey.isEmpty()) ||
+            (result.jevApiKey == null && config_.jevHasApiKey());
+      if (result.jevEnabled && !jevKeyAvailable)
+      {
+         RStudioGinjector.INSTANCE.getGlobalDisplay().showErrorMessage(
+               constants_.settingsCaption(), constants_.jevKeyRequired());
+         return false;
+      }
       return true;
+   }
+
+   private void updateJevState()
+   {
+      boolean enabled = jevEnabled_.getValue();
+      jevApiKeyLabel_.setVisible(enabled);
+      jevApiKey_.setVisible(enabled);
+      jevKeyStatus_.setVisible(enabled);
+      jevRemoveKey_.setVisible(enabled &&
+            StringUtil.equals(config_.getJevApiKeySource(), "saved"));
    }
 
    private Widget spacer()
@@ -410,6 +490,12 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
    private Widget serviceSpacer_;
    private final FormLabel apiKeyLabel_;
    private final Label toolsHelp_;
+   private final CheckBox jevEnabled_;
+   private final PasswordTextBox jevApiKey_;
+   private final FormLabel jevApiKeyLabel_;
+   private final Label jevKeyStatus_;
+   private final CheckBox jevRemoveKey_;
+   private final Label jevHelp_;
    private final ListBox provider_;
    private final TextBox model_;
    private final TextBox baseUrl_;

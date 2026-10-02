@@ -147,6 +147,24 @@
    white-space: nowrap;
 }
 
+.toolRisk {
+   padding: 3px 8px;
+   font-size: 11px;
+   opacity: 0.85;
+   border-top: 1px solid rgba(128, 128, 128, 0.25);
+}
+
+.toolRiskFlagged {
+   opacity: 1;
+   font-weight: bold;
+   color: #b35c00;
+   background-color: rgba(255, 165, 0, 0.12);
+}
+
+.rstudio-themes-dark .toolRiskFlagged {
+   color: #ffb347;
+}
+
 .toolDetails {
    border-top: 1px solid rgba(128, 128, 128, 0.25);
 }

@@ -16,6 +16,8 @@
 #include "SessionAiChat.hpp"
 
 #include <map>
+#include <utility>
+#include <vector>
 
 #include <boost/bind/bind.hpp>
 
@@ -63,6 +65,18 @@ const char* const kOpenAiDefaultModel   = "gpt-5";
 
 const char* const kCustomDefaultBaseUrl = "http://localhost:11434/v1";
 
+// Jev (TypeSafe AI) is a "System One" model: it returns typed answers, not
+// text. The AI pane uses it to rate the risk of actions before they run.
+const char* const kJevEndpoint     = "https://api.typesafe.ai/v1/systemone";
+const char* const kJevDefaultModel = "jev-latest";
+const char* const kJevKeySlot      = "typesafe";
+const char* const kJevKeyEnvVar    = "TYPESAFE_API_KEY";
+
+// Jev answers in well under a second; don't hold up an action for long if it
+// is unreachable.
+const boost::posix_time::time_duration kJevRequestTimeout =
+   boost::posix_time::seconds(15);
+
 const boost::posix_time::time_duration kConnectionTimeout =
    boost::posix_time::seconds(30);
 
@@ -81,6 +95,9 @@ struct Config
    // Saved API keys, by key slot (see keySlot()), so switching providers or
    // endpoints doesn't throw away a key the user already entered.
    std::map<std::string, std::string> apiKeys;
+
+   // whether actions are risk-checked with Jev before they run
+   bool jevEnabled = false;
 };
 
 std::string defaultBaseUrl(const std::string& provider)
@@ -180,6 +197,7 @@ Config readConfig()
          json::readObject(object, "provider", config.provider);
          json::readObject(object, "model", config.model);
          json::readObject(object, "base_url", config.baseUrl);
+         json::readObject(object, "jev_enabled", config.jevEnabled);
 
          json::Object::Iterator it = object.find("api_keys");
          if (it != object.end() && (*it).getValue().isObject())
@@ -225,6 +243,7 @@ Error writeConfig(const Config& config)
    object["model"] = config.model;
    object["base_url"] = config.baseUrl;
    object["api_keys"] = keys;
+   object["jev_enabled"] = config.jevEnabled;
 
    // create the file empty and restrict it to the user before any key is
    // written into it
@@ -272,6 +291,20 @@ std::string effectiveApiKey(const Config& config, std::string* pSource)
    return std::string();
 }
 
+std::string jevApiKey(const Config& config, std::string* pSource)
+{
+   auto it = config.apiKeys.find(kJevKeySlot);
+   if (it != config.apiKeys.end() && !it->second.empty())
+   {
+      *pSource = "saved";
+      return it->second;
+   }
+
+   std::string envKey = core::system::getenv(kJevKeyEnvVar);
+   *pSource = envKey.empty() ? "none" : "environment";
+   return envKey;
+}
+
 std::string endpointUrl(const Config& config)
 {
    std::string baseUrl = effectiveBaseUrl(config);
@@ -299,6 +332,12 @@ json::Object configAsJson(const Config& config)
    result["api_key_source"] = keySource;
    result["api_key_env_var"] = environmentKeyName(config.provider);
    result["saved_key_slots"] = savedKeySlots;
+
+   std::string jevKeySource;
+   std::string jevKey = jevApiKey(config, &jevKeySource);
+   result["jev_enabled"] = config.jevEnabled;
+   result["jev_has_api_key"] = !jevKey.empty();
+   result["jev_api_key_source"] = jevKeySource;
    return result;
 }
 
@@ -336,6 +375,20 @@ Error aiChatSetConfig(const json::JsonRpcRequest& request,
          config.apiKeys.erase(keySlot(config));
       else
          config.apiKeys[keySlot(config)] = apiKey;
+   }
+
+   // optional: Jev safety check enabled, and its key (same null / "" /
+   // value convention as the model's key)
+   if (request.params.getSize() > 4 && request.params[4].isBool())
+      config.jevEnabled = request.params[4].getBool();
+
+   if (request.params.getSize() > 5 && request.params[5].isString())
+   {
+      std::string jevKey = string_utils::trimWhitespace(request.params[5].getString());
+      if (jevKey.empty())
+         config.apiKeys.erase(kJevKeySlot);
+      else
+         config.apiKeys[kJevKeySlot] = jevKey;
    }
 
    error = writeConfig(config);
@@ -379,6 +432,59 @@ void onModelError(const json::JsonRpcFunctionContinuation& cont,
       boost::bind(resolveRequest, cont, 0, std::string(), message));
 }
 
+// POSTs a JSON body asynchronously and resolves the RPC with
+// { status, body, error } once a response (or failure) arrives.
+void postJson(const std::string& endpoint,
+              const std::vector<std::pair<std::string, std::string>>& headers,
+              const std::string& body,
+              const boost::posix_time::time_duration& requestTimeout,
+              const json::JsonRpcFunctionContinuation& cont)
+{
+   http::URL url(endpoint);
+   bool useSsl = url.protocol() == "https";
+   if (!url.isValid() || (!useSsl && url.protocol() != "http"))
+   {
+      resolveRequest(cont, 0, std::string(),
+                     "The configured base URL is not a valid http(s) URL: " + endpoint);
+      return;
+   }
+
+   http::Request httpRequest;
+   httpRequest.setMethod("POST");
+   httpRequest.setUri(url.path());
+   httpRequest.setHost(url.host());
+   httpRequest.setHeader("Connection", "close");
+   httpRequest.setHeader("Accept", "application/json");
+   httpRequest.setContentType("application/json");
+   for (const auto& header : headers)
+      httpRequest.setHeader(header.first, header.second);
+   httpRequest.setBody(body);
+
+   boost::shared_ptr<http::IAsyncClient> pClient;
+   if (useSsl)
+   {
+      pClient.reset(new http::TcpIpAsyncClientSsl(server_rpc::ioContext(),
+                                                  url.hostname(),
+                                                  url.portStr(),
+                                                  true, // verify certificates
+                                                  std::string(),
+                                                  kConnectionTimeout));
+   }
+   else
+   {
+      pClient.reset(new http::TcpIpAsyncClient(server_rpc::ioContext(),
+                                               url.hostname(),
+                                               url.portStr(),
+                                               kConnectionTimeout));
+   }
+
+   pClient->request().assign(httpRequest);
+   pClient->setRequestTimeout(requestTimeout);
+   pClient->execute(
+      boost::bind(onModelResponse, cont, _1),
+      boost::bind(onModelError, cont, endpoint, _1));
+}
+
 // Parameter: the provider-specific request body, as a JSON string. The client
 // builds the body (it owns the conversation and the tool definitions); this
 // side fills in the model, attaches credentials, and forwards it. The result
@@ -420,57 +526,62 @@ void aiChatSendRequest(const json::JsonRpcRequest& request,
       return;
    }
 
-   std::string endpoint = endpointUrl(config);
-   http::URL url(endpoint);
-   bool useSsl = url.protocol() == "https";
-   if (!url.isValid() || (!useSsl && url.protocol() != "http"))
-   {
-      resolveRequest(cont, 0, std::string(),
-                     "The configured base URL is not a valid http(s) URL: " + endpoint);
-      return;
-   }
-
-   http::Request httpRequest;
-   httpRequest.setMethod("POST");
-   httpRequest.setUri(url.path());
-   httpRequest.setHost(url.host());
-   httpRequest.setHeader("Connection", "close");
-   httpRequest.setHeader("Accept", "application/json");
-   httpRequest.setContentType("application/json");
+   std::vector<std::pair<std::string, std::string>> headers;
    if (config.provider == kProviderAnthropic)
    {
-      httpRequest.setHeader("x-api-key", apiKey);
-      httpRequest.setHeader("anthropic-version", kAnthropicVersion);
+      headers.push_back(std::make_pair("x-api-key", apiKey));
+      headers.push_back(std::make_pair("anthropic-version", kAnthropicVersion));
    }
    else if (!apiKey.empty())
    {
-      httpRequest.setHeader("Authorization", "Bearer " + apiKey);
-   }
-   httpRequest.setBody(bodyObject.write());
-
-   boost::shared_ptr<http::IAsyncClient> pClient;
-   if (useSsl)
-   {
-      pClient.reset(new http::TcpIpAsyncClientSsl(server_rpc::ioContext(),
-                                                  url.hostname(),
-                                                  url.portStr(),
-                                                  true, // verify certificates
-                                                  std::string(),
-                                                  kConnectionTimeout));
-   }
-   else
-   {
-      pClient.reset(new http::TcpIpAsyncClient(server_rpc::ioContext(),
-                                               url.hostname(),
-                                               url.portStr(),
-                                               kConnectionTimeout));
+      headers.push_back(std::make_pair("Authorization", "Bearer " + apiKey));
    }
 
-   pClient->request().assign(httpRequest);
-   pClient->setRequestTimeout(kRequestTimeout);
-   pClient->execute(
-      boost::bind(onModelResponse, cont, _1),
-      boost::bind(onModelError, cont, endpoint, _1));
+   postJson(endpointUrl(config), headers, bodyObject.write(), kRequestTimeout, cont);
+}
+
+// Parameter: a Jev /v1/systemone request body (state and questions), as a
+// JSON string. The session adds the model (if absent) and the TypeSafe key.
+// Result: { status, body, error }, as for ai_chat_send_request.
+void aiChatJevRequest(const json::JsonRpcRequest& request,
+                      const json::JsonRpcFunctionContinuation& cont)
+{
+   std::string body;
+   Error error = json::readParams(request.params, &body);
+   if (error)
+   {
+      json::JsonRpcResponse response;
+      json::setErrorResponse(error, &response);
+      cont(error, &response);
+      return;
+   }
+
+   json::Value bodyValue;
+   error = bodyValue.parse(body);
+   if (error || !bodyValue.isObject())
+   {
+      resolveRequest(cont, 0, std::string(), "Invalid request body.");
+      return;
+   }
+
+   json::Object bodyObject = bodyValue.getObject();
+   if (!bodyObject.hasMember("model"))
+      bodyObject["model"] = kJevDefaultModel;
+
+   std::string keySource;
+   std::string apiKey = jevApiKey(readConfig(), &keySource);
+   if (apiKey.empty())
+   {
+      resolveRequest(cont, 0, std::string(),
+                     std::string("No TypeSafe API key is configured for the Jev safety check. "
+                                 "Add one in the AI pane settings, or set the ") +
+                     kJevKeyEnvVar + " environment variable.");
+      return;
+   }
+
+   std::vector<std::pair<std::string, std::string>> headers;
+   headers.push_back(std::make_pair("Authorization", "Bearer " + apiKey));
+   postJson(kJevEndpoint, headers, bodyObject.write(), kJevRequestTimeout, cont);
 }
 
 } // anonymous namespace
@@ -485,6 +596,7 @@ Error initialize()
       (bind(registerRpcMethod, "ai_chat_get_config", aiChatGetConfig))
       (bind(registerRpcMethod, "ai_chat_set_config", aiChatSetConfig))
       (bind(registerAsyncRpcMethod, "ai_chat_send_request", aiChatSendRequest))
+      (bind(registerAsyncRpcMethod, "ai_chat_jev_request", aiChatJevRequest))
       (bind(sourceModuleRFile, "SessionAiChat.R"));
 
    return initBlock.execute();
