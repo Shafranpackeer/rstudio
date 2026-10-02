@@ -137,11 +137,14 @@ public class AiChatProtocol
 
    /**
     * Builds the request body for the given provider. The model name is left
-    * for the session to fill in, since it owns the configuration.
+    * for the session to fill in, since it owns the configuration. When
+    * includeTools is false (for models without tool calling) no tools are
+    * offered and any tool calls in the history are left out.
     */
    public static native String buildRequestBody(String provider,
                                                 String systemPrompt,
-                                                JsArray<JavaScriptObject> messages) /*-{
+                                                JsArray<JavaScriptObject> messages,
+                                                boolean includeTools) /*-{
       var tools = @org.rstudio.studio.client.workbench.views.aichat.model.AiChatProtocol::toolDefinitions()();
 
       // Both APIs reject a tool call that has no result. That happens when
@@ -168,6 +171,19 @@ public class AiChatProtocol
          }
       }
       messages = repaired;
+
+      if (!includeTools) {
+         var chatOnly = [];
+         for (var i = 0; i < messages.length; i++) {
+            var m = messages[i];
+            if (m.role === "tool")
+               continue;
+            if (m.role === "assistant")
+               m = { role: "assistant", content: m.content || "" };
+            chatOnly.push(m);
+         }
+         messages = chatOnly;
+      }
 
       if (provider === "anthropic") {
          var out = [];
@@ -197,14 +213,13 @@ public class AiChatProtocol
             }
          }
 
-         return JSON.stringify({
-            max_tokens: 16000,
-            system: systemPrompt,
-            tools: tools.map(function(t) {
+         var anthropicBody = { max_tokens: 16000, system: systemPrompt, messages: out };
+         if (includeTools) {
+            anthropicBody.tools = tools.map(function(t) {
                return { name: t.name, description: t.description, input_schema: t.schema };
-            }),
-            messages: out
-         });
+            });
+         }
+         return JSON.stringify(anthropicBody);
       }
 
       // OpenAI chat completions (also used by custom, OpenAI-compatible servers)
@@ -233,15 +248,16 @@ public class AiChatProtocol
          }
       }
 
-      return JSON.stringify({
-         messages: out,
-         tools: tools.map(function(t) {
+      var body = { messages: out };
+      if (includeTools) {
+         body.tools = tools.map(function(t) {
             return {
                type: "function",
                "function": { name: t.name, description: t.description, parameters: t.schema }
             };
-         })
-      });
+         });
+      }
+      return JSON.stringify(body);
    }-*/;
 
    // Responses --------------------------------------------------------------
@@ -316,6 +332,20 @@ public class AiChatProtocol
       }
 
       return { role: "assistant", content: text, tool_calls: calls };
+   }-*/;
+
+   /**
+    * True when an error from an OpenAI-compatible server says the model (or
+    * server) can't do tool calling, e.g. Ollama's "... does not support
+    * tools" or vLLM's "auto tool choice requires --enable-auto-tool-choice".
+    */
+   public static native boolean isToolsUnsupportedError(String error) /*-{
+      if (!error)
+         return false;
+      var text = error.toLowerCase();
+      if (text.indexOf("tool") === -1 && text.indexOf("function") === -1)
+         return false;
+      return /not support|unsupported|does not support|doesn't support|not allowed|not enabled|requires|unknown|unrecognized|unexpected|extra|invalid|not permitted/.test(text);
    }-*/;
 
    // Conversation helpers ---------------------------------------------------

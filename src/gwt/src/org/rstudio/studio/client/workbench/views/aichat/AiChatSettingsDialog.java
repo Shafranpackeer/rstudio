@@ -71,6 +71,13 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
       }
       provider_.addChangeHandler(event -> onProviderChanged());
 
+      service_ = new ListBox();
+      for (Preset preset : PRESETS)
+         service_.addItem(preset.label, preset.baseUrl);
+      service_.addItem(constants_.serviceOther(), "");
+      service_.addChangeHandler(event -> onServiceChanged());
+      serviceLabel_ = new FormLabel(constants_.serviceLabel(), service_);
+
       model_ = new TextBox();
       model_.setWidth("300px");
 
@@ -87,6 +94,16 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
 
       removeKey_ = new CheckBox(constants_.removeApiKey());
 
+      apiKeyLabel_ = new FormLabel(constants_.apiKeyLabel(), apiKey_);
+
+      baseUrl_.addChangeHandler(event -> updateKeyStatus());
+
+      toolsHelp_ = new Label(constants_.toolCallingHelp());
+      toolsHelp_.getElement().getStyle().setProperty("maxWidth", "380px");
+      toolsHelp_.getElement().getStyle().setMarginTop(8, Unit.PX);
+      toolsHelp_.getElement().getStyle().setFontSize(11, Unit.PX);
+      toolsHelp_.getElement().getStyle().setFontWeight(com.google.gwt.dom.client.Style.FontWeight.BOLD);
+
       customHelp_ = new Label(constants_.customHelp());
       customHelp_.getElement().getStyle().setProperty("maxWidth", "380px");
       customHelp_.getElement().getStyle().setMarginTop(8, Unit.PX);
@@ -96,6 +113,7 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
       // for other providers appear as placeholders when switching
       model_.setText(config.getModel());
       baseUrl_.setText(config.getBaseUrl());
+      selectServiceFor(config.getBaseUrl());
       updateProviderDependentState();
    }
 
@@ -109,6 +127,15 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
       panel.add(provider_);
       panel.add(spacer());
 
+      panel.add(serviceLabel_);
+      panel.add(service_);
+      serviceSpacer_ = spacer();
+      panel.add(serviceSpacer_);
+      boolean isCustom = StringUtil.equals(selectedProvider(), AiChatConfig.PROVIDER_CUSTOM);
+      serviceLabel_.setVisible(isCustom);
+      service_.setVisible(isCustom);
+      serviceSpacer_.setVisible(isCustom);
+
       panel.add(new FormLabel(constants_.modelLabel(), model_));
       panel.add(model_);
       panel.add(spacer());
@@ -117,11 +144,12 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
       panel.add(baseUrl_);
       panel.add(spacer());
 
-      panel.add(new FormLabel(constants_.apiKeyLabel(), apiKey_));
+      panel.add(apiKeyLabel_);
       panel.add(apiKey_);
       panel.add(keyStatus_);
       panel.add(removeKey_);
 
+      panel.add(toolsHelp_);
       panel.add(customHelp_);
 
       Label storageHelp = new Label(constants_.keyStorageHelp());
@@ -182,29 +210,117 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
       boolean isConfigured = StringUtil.equals(selectedProvider(), config_.getProvider());
       model_.setText(isConfigured ? config_.getModel() : "");
       baseUrl_.setText(isConfigured ? config_.getBaseUrl() : "");
+      if (StringUtil.equals(selectedProvider(), AiChatConfig.PROVIDER_CUSTOM))
+      {
+         if (isConfigured)
+         {
+            selectServiceFor(config_.getBaseUrl());
+         }
+         else
+         {
+            service_.setSelectedIndex(0);
+            baseUrl_.setText(service_.getSelectedValue());
+         }
+      }
       updateProviderDependentState();
+   }
+
+   private void onServiceChanged()
+   {
+      String url = service_.getSelectedValue();
+      baseUrl_.setText(url);
+      model_.setText(StringUtil.equals(normalizeUrl(url), normalizeUrl(config_.getBaseUrl()))
+            ? config_.getModel() : "");
+      updateProviderDependentState();
+      if (url.isEmpty())
+         baseUrl_.setFocus(true);
+   }
+
+   private void selectServiceFor(String baseUrl)
+   {
+      String normalized = normalizeUrl(baseUrl);
+      for (int i = 0; i < service_.getItemCount(); i++)
+      {
+         String value = service_.getValue(i);
+         if (!value.isEmpty() && StringUtil.equals(normalizeUrl(value), normalized))
+         {
+            service_.setSelectedIndex(i);
+            return;
+         }
+      }
+      service_.setSelectedIndex(service_.getItemCount() - 1);
+   }
+
+   private Preset selectedPreset()
+   {
+      int index = service_.getSelectedIndex();
+      return index >= 0 && index < PRESETS.length ? PRESETS[index] : null;
    }
 
    private void updateProviderDependentState()
    {
       String provider = selectedProvider();
       boolean isCustom = StringUtil.equals(provider, AiChatConfig.PROVIDER_CUSTOM);
-      boolean isConfigured = StringUtil.equals(provider, config_.getProvider());
 
-      model_.getElement().setAttribute("placeholder", defaultModel(provider));
+      Preset preset = isCustom ? selectedPreset() : null;
+      model_.getElement().setAttribute("placeholder",
+            preset != null ? preset.modelHint : defaultModel(provider));
       baseUrl_.getElement().setAttribute("placeholder", defaultBaseUrl(provider));
+
+      serviceLabel_.setVisible(isCustom);
+      service_.setVisible(isCustom);
+      if (serviceSpacer_ != null)
+         serviceSpacer_.setVisible(isCustom);
+      toolsHelp_.setVisible(isCustom);
       customHelp_.setVisible(isCustom);
 
-      String keySource = isConfigured ? config_.getApiKeySource() : "none";
-      if (StringUtil.equals(keySource, "saved"))
+      // local servers usually don't need a key; hosted ones do
+      boolean keyOptional = isCustom && (preset == null || preset.local);
+      apiKeyLabel_.setText(keyOptional ? constants_.apiKeyOptionalLabel() : constants_.apiKeyLabel());
+
+      updateKeyStatus();
+   }
+
+   private void updateKeyStatus()
+   {
+      String provider = selectedProvider();
+      String slot = keySlot(provider, baseUrl_.getText());
+
+      boolean saved = config_.hasSavedKey(slot);
+      boolean fromEnvironment = !saved &&
+            StringUtil.equals(provider, config_.getProvider()) &&
+            StringUtil.equals(config_.getApiKeySource(), "environment");
+
+      if (saved)
          keyStatus_.setText(constants_.apiKeySaved());
-      else if (StringUtil.equals(keySource, "environment"))
+      else if (fromEnvironment)
          keyStatus_.setText(constants_.apiKeyFromEnvironment(envVar(provider)));
       else
          keyStatus_.setText(constants_.apiKeyMissing(envVar(provider)));
 
       removeKey_.setValue(false);
-      removeKey_.setVisible(StringUtil.equals(keySource, "saved"));
+      removeKey_.setVisible(saved);
+   }
+
+   // Mirrors keySlot() in SessionAiChat.cpp: keys are saved per provider,
+   // and per base URL for custom endpoints.
+   private static String keySlot(String provider, String baseUrl)
+   {
+      if (!StringUtil.equals(provider, AiChatConfig.PROVIDER_CUSTOM))
+         return provider;
+
+      String url = normalizeUrl(baseUrl);
+      if (url.isEmpty())
+         url = normalizeUrl(defaultBaseUrl(provider));
+      return provider + "|" + url; //$NON-NLS-1$
+   }
+
+   private static String normalizeUrl(String url)
+   {
+      String result = StringUtil.notNull(url).trim();
+      while (result.endsWith("/")) //$NON-NLS-1$
+         result = result.substring(0, result.length() - 1);
+      return result;
    }
 
    // These mirror the defaults in SessionAiChat.cpp, and are only used as
@@ -236,7 +352,42 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
       return "ANTHROPIC_API_KEY"; //$NON-NLS-1$
    }
 
+   // Popular services with OpenAI-compatible endpoints. Model names are only
+   // shown as hints, since each service's catalog changes often.
+   private static class Preset
+   {
+      Preset(String label, String baseUrl, String modelHint, boolean local)
+      {
+         this.label = label;
+         this.baseUrl = baseUrl;
+         this.modelHint = modelHint;
+         this.local = local;
+      }
+
+      final String label;
+      final String baseUrl;
+      final String modelHint;
+      final boolean local;
+   }
+
+   private static final Preset[] PRESETS = new Preset[] {
+      new Preset("Ollama (local)", "http://localhost:11434/v1", "e.g. llama3.1, qwen2.5-coder", true), //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+      new Preset("LM Studio (local)", "http://localhost:1234/v1", "the model loaded in LM Studio", true), //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+      new Preset("OpenRouter", "https://openrouter.ai/api/v1", "e.g. anthropic/claude-sonnet-4.5", false), //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+      new Preset("Google Gemini", "https://generativelanguage.googleapis.com/v1beta/openai", "e.g. gemini-2.5-flash", false), //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+      new Preset("Groq", "https://api.groq.com/openai/v1", "e.g. llama-3.3-70b-versatile", false), //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+      new Preset("Mistral", "https://api.mistral.ai/v1", "e.g. mistral-large-latest", false), //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+      new Preset("DeepSeek", "https://api.deepseek.com/v1", "e.g. deepseek-chat", false), //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+      new Preset("Together AI", "https://api.together.xyz/v1", "e.g. meta-llama/Llama-3.3-70B-Instruct-Turbo", false), //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+      new Preset("xAI (Grok)", "https://api.x.ai/v1", "a Grok model name", false), //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+   };
+
    private final AiChatConfig config_;
+   private final ListBox service_;
+   private final FormLabel serviceLabel_;
+   private Widget serviceSpacer_;
+   private final FormLabel apiKeyLabel_;
+   private final Label toolsHelp_;
    private final ListBox provider_;
    private final TextBox model_;
    private final TextBox baseUrl_;

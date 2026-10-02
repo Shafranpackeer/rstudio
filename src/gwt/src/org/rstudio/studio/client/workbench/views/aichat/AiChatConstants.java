@@ -52,6 +52,9 @@ public interface AiChatConstants extends com.google.gwt.i18n.client.Messages
    @DefaultMessage("Connect Claude, ChatGPT, or any OpenAI-compatible model (such as a local Ollama server). The AI can read your files, look at the open document, edit code, and run R code in your session. Anything that changes your files or session asks for your approval first.")
    String welcomeMessage();
 
+   @DefaultMessage("Using a custom or local model? It needs tool calling (function calling) support to read files, edit code, or run R. Without it, the AI works in chat-only mode.")
+   String welcomeToolsNote();
+
    @DefaultMessage("Configure AI Provider...")
    String configureButton();
 
@@ -156,8 +159,35 @@ public interface AiChatConstants extends com.google.gwt.i18n.client.Messages
    @DefaultMessage("Remove saved API key")
    String removeApiKey();
 
-   @DefaultMessage("Custom providers can be any server with an OpenAI-compatible /chat/completions endpoint, such as Ollama (http://localhost:11434/v1), LM Studio, vLLM, or OpenRouter. The model must support tool calling.")
+   @DefaultMessage("Pick a service to fill in its address, or choose Other for any server with an OpenAI-compatible /chat/completions endpoint (vLLM, LiteLLM, a company gateway, and so on). Paste that service''s API key below.")
    String customHelp();
+
+   @DefaultMessage("Service:")
+   String serviceLabel();
+
+   @DefaultMessage("Other OpenAI-compatible server")
+   String serviceOther();
+
+   @DefaultMessage("API key (optional for local servers):")
+   String apiKeyOptionalLabel();
+
+   @DefaultMessage("Important: the model must support tool calling (also called function calling) for the AI to read your files, edit code, or run R. Models without it can still chat, and RStudio switches to chat-only mode automatically when it detects this.")
+   String toolCallingHelp();
+
+   @DefaultMessage("Chat only: {0} does not support tool calling, so the AI can answer questions but cannot read files, edit code, or run R. Choose a model that supports tool calling to enable those.")
+   String toolsUnsupported(String model);
+
+   @DefaultMessage("chat only")
+   String chatOnly();
+
+   @DefaultMessage("Testing connection...")
+   String testingConnection();
+
+   @DefaultMessage("Connected to {0}. The AI is ready.")
+   String connectionOk(String model);
+
+   @DefaultMessage("Could not connect: {0}")
+   String connectionFailed(String error);
 
    @DefaultMessage("The API key is stored only in your RStudio data directory and is never sent anywhere except the provider you choose.")
    String keyStorageHelp();

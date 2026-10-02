@@ -206,6 +206,8 @@ public class AiChatPresenter extends BasePresenter
                      setConfig(config);
                      if (messages_.length() == 0)
                         display_.showWelcome(isConfigured());
+                     if (isConfigured())
+                        testConnection();
                      display_.focusInput();
                   }
 
@@ -253,10 +255,121 @@ public class AiChatPresenter extends BasePresenter
    private void setConfig(AiChatConfig config)
    {
       config_ = config;
-      if (isConfigured())
-         display_.setStatus(constants_.connectedTo(providerName(config.getProvider()), config.getModel()));
-      else
+      updateStatus();
+   }
+
+   private void updateStatus()
+   {
+      if (!isConfigured())
+      {
          display_.setStatus(constants_.notConfigured());
+         return;
+      }
+
+      String status = constants_.connectedTo(providerName(config_), config_.getModel());
+      if (!toolsSupported())
+         status += " \u2013 " + constants_.chatOnly(); //$NON-NLS-1$
+      display_.setStatus(status);
+   }
+
+   // Models without tool calling are remembered per endpoint and model, so
+   // switching to a capable model turns the tools back on.
+   private String modelKey()
+   {
+      return config_.getProvider() + "|" + config_.getBaseUrl() + "|" + config_.getModel(); //$NON-NLS-1$ //$NON-NLS-2$
+   }
+
+   private boolean toolsSupported()
+   {
+      return config_ == null || !StringUtil.equals(toolsUnsupportedFor_, modelKey());
+   }
+
+   private void markToolsUnsupported()
+   {
+      toolsUnsupportedFor_ = modelKey();
+      updateStatus();
+      display_.addInfoMessage(constants_.toolsUnsupported(config_.getModel()));
+   }
+
+   /** True when this error means the model can't do tool calling, and we
+    *  haven't already switched it to chat-only mode. */
+   private boolean shouldFallBackToChatOnly(String error)
+   {
+      return StringUtil.equals(config_.getProvider(), AiChatConfig.PROVIDER_CUSTOM) &&
+             toolsSupported() &&
+             AiChatProtocol.isToolsUnsupportedError(error);
+   }
+
+   /**
+    * Sends a tiny request with the current settings so problems (a bad key,
+    * a wrong address, a model without tool calling) show up right away
+    * rather than on the user's first real message.
+    */
+   private void testConnection()
+   {
+      if (busy_)
+         return;
+
+      final int generation = ++generation_;
+      final String provider = config_.getProvider();
+      setBusy(true);
+      display_.addInfoMessage(constants_.testingConnection());
+
+      JsArray<JavaScriptObject> probe = JavaScriptObject.createArray().cast();
+      probe.push(AiChatProtocol.userMessage("Reply with just the word OK.")); //$NON-NLS-1$
+
+      sendProbe(provider, probe, toolsSupported(), generation);
+   }
+
+   private void sendProbe(final String provider,
+                          final JsArray<JavaScriptObject> probe,
+                          final boolean includeTools,
+                          final int generation)
+   {
+      String body = AiChatProtocol.buildRequestBody(provider, systemPrompt(), probe, includeTools);
+      server_.aiChatSendRequest(body, new ServerRequestCallback<AiChatHttpResult>()
+      {
+         @Override
+         public void onResponseReceived(AiChatHttpResult result)
+         {
+            if (generation != generation_)
+               return;
+
+            String error = result.getError();
+            if (StringUtil.isNullOrEmpty(error))
+            {
+               JavaScriptObject reply = AiChatProtocol.parseResponse(
+                     provider, result.getStatus(), result.getBody());
+               error = AiChatProtocol.getError(reply);
+            }
+
+            if (error == null || error.isEmpty())
+            {
+               if (includeTools)
+                  display_.addInfoMessage(constants_.connectionOk(config_.getModel()));
+               setBusy(false);
+            }
+            else if (includeTools && shouldFallBackToChatOnly(error))
+            {
+               markToolsUnsupported();
+               sendProbe(provider, probe, false, generation);
+            }
+            else
+            {
+               display_.addErrorMessage(constants_.connectionFailed(error));
+               setBusy(false);
+            }
+         }
+
+         @Override
+         public void onError(ServerError error)
+         {
+            if (generation != generation_)
+               return;
+            display_.addErrorMessage(constants_.connectionFailed(error.getUserMessage()));
+            setBusy(false);
+         }
+      });
    }
 
    private boolean isConfigured()
@@ -267,12 +380,17 @@ public class AiChatPresenter extends BasePresenter
               StringUtil.equals(config_.getProvider(), AiChatConfig.PROVIDER_CUSTOM));
    }
 
-   private String providerName(String provider)
+   private String providerName(AiChatConfig config)
    {
+      String provider = config.getProvider();
       if (StringUtil.equals(provider, AiChatConfig.PROVIDER_OPENAI))
          return "OpenAI"; //$NON-NLS-1$
       if (StringUtil.equals(provider, AiChatConfig.PROVIDER_CUSTOM))
-         return constants_.providerCustom();
+      {
+         // name the service by its host, e.g. "openrouter.ai" or "localhost:11434"
+         String host = config.getBaseUrl().replaceFirst("^[a-zA-Z]+://", "").replaceFirst("/.*$", ""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
+         return host.isEmpty() ? constants_.providerCustom() : host;
+      }
       return "Anthropic"; //$NON-NLS-1$
    }
 
@@ -299,7 +417,8 @@ public class AiChatPresenter extends BasePresenter
       }
 
       final String provider = config_.getProvider();
-      String body = AiChatProtocol.buildRequestBody(provider, systemPrompt(), messages_);
+      final boolean includeTools = toolsSupported();
+      String body = AiChatProtocol.buildRequestBody(provider, systemPrompt(), messages_, includeTools);
 
       server_.aiChatSendRequest(body, new ServerRequestCallback<AiChatHttpResult>()
       {
@@ -320,6 +439,15 @@ public class AiChatPresenter extends BasePresenter
             String error = AiChatProtocol.getError(reply);
             if (error != null)
             {
+               // the model can't call tools: carry on as a plain chat
+               if (includeTools && shouldFallBackToChatOnly(error))
+               {
+                  markToolsUnsupported();
+                  steps_--;
+                  requestReply(generation);
+                  return;
+               }
+
                fail(error);
                return;
             }
@@ -630,6 +758,17 @@ public class AiChatPresenter extends BasePresenter
             ? workbenchContext_.getCurrentWorkingDir().getPath()
             : "~"; //$NON-NLS-1$
 
+      if (!toolsSupported())
+      {
+         return
+            "You are an AI coding assistant built into RStudio, the IDE for R (and Python). " +
+            "You help the user understand and write code and analyze data. In this mode you " +
+            "cannot see the user's files or R session, so ask them to paste the code or " +
+            "output you need, and give complete code they can run or insert. Be concise. " +
+            "Use Markdown, and tag fenced code blocks with their language.\n\n" +
+            "The R working directory is " + cwd + "."; //$NON-NLS-1$
+      }
+
       return
          "You are an AI coding assistant built into RStudio, the IDE for R (and Python). " +
          "You help the user understand, write, and change code, analyze data, and work in " +
@@ -667,6 +806,9 @@ public class AiChatPresenter extends BasePresenter
    private final Provider<SourceColumnManager> pSourceColumnManager_;
 
    private AiChatConfig config_;
+
+   // the model (see modelKey()) found not to support tool calling, if any
+   private String toolsUnsupportedFor_;
    private JsArray<JavaScriptObject> messages_;
    private Display.ToolCallView pendingApproval_;
    private boolean busy_;

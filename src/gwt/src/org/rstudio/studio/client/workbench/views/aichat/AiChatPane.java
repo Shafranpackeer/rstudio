@@ -96,6 +96,14 @@ public class AiChatPane extends WorkbenchPane implements AiChatPresenter.Display
       input_.getElement().setAttribute("aria-label", constants_.inputLabel());
       input_.addKeyDownHandler(event ->
       {
+         if (event.getNativeKeyCode() == KeyCodes.KEY_ESCAPE && busy_)
+         {
+            event.preventDefault();
+            if (observer_ != null)
+               observer_.onStop();
+            return;
+         }
+
          if (event.getNativeKeyCode() == KeyCodes.KEY_ENTER &&
              !event.getNativeEvent().getShiftKey() &&
              !event.getNativeEvent().getAltKey() &&
@@ -205,6 +213,11 @@ public class AiChatPane extends WorkbenchPane implements AiChatPresenter.Display
       Label text = new Label(constants_.welcomeMessage());
       text.addStyleName(RES.styles().welcomeText());
       welcome_.add(text);
+
+      Label toolsNote = new Label(constants_.welcomeToolsNote());
+      toolsNote.addStyleName(RES.styles().welcomeText());
+      toolsNote.getElement().getStyle().setFontSize(11, Unit.PX);
+      welcome_.add(toolsNote);
 
       if (!configured)
       {

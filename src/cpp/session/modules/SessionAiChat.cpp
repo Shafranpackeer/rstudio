@@ -15,6 +15,8 @@
 
 #include "SessionAiChat.hpp"
 
+#include <map>
+
 #include <boost/bind/bind.hpp>
 
 #include <shared_core/Error.hpp>
@@ -75,7 +77,10 @@ struct Config
    std::string provider;
    std::string model;
    std::string baseUrl;
-   std::string apiKey;
+
+   // Saved API keys, by key slot (see keySlot()), so switching providers or
+   // endpoints doesn't throw away a key the user already entered.
+   std::map<std::string, std::string> apiKeys;
 };
 
 std::string defaultBaseUrl(const std::string& provider)
@@ -114,6 +119,37 @@ std::string environmentKeyName(const std::string& provider)
    return "RSTUDIO_AI_API_KEY";
 }
 
+std::string effectiveBaseUrl(const std::string& provider, const std::string& configuredBaseUrl)
+{
+   std::string baseUrl = string_utils::trimWhitespace(configuredBaseUrl);
+   if (baseUrl.empty())
+      baseUrl = defaultBaseUrl(provider);
+   while (!baseUrl.empty() && baseUrl[baseUrl.size() - 1] == '/')
+      baseUrl.erase(baseUrl.size() - 1);
+   return baseUrl;
+}
+
+std::string effectiveBaseUrl(const Config& config)
+{
+   return effectiveBaseUrl(config.provider, config.baseUrl);
+}
+
+// Keys for Anthropic and OpenAI are saved per provider. Custom servers are
+// all different services (OpenRouter, Groq, a local Ollama, ...), so their
+// keys are saved per base URL. The client computes the same slots (see
+// AiChatSettingsDialog) to show which endpoints already have a key.
+std::string keySlot(const std::string& provider, const std::string& configuredBaseUrl)
+{
+   if (provider == kProviderCustom)
+      return provider + "|" + effectiveBaseUrl(provider, configuredBaseUrl);
+   return provider;
+}
+
+std::string keySlot(const Config& config)
+{
+   return keySlot(config.provider, config.baseUrl);
+}
+
 FilePath configFilePath()
 {
    return module_context::userScratchPath()
@@ -144,7 +180,26 @@ Config readConfig()
          json::readObject(object, "provider", config.provider);
          json::readObject(object, "model", config.model);
          json::readObject(object, "base_url", config.baseUrl);
-         json::readObject(object, "api_key", config.apiKey);
+
+         json::Object::Iterator it = object.find("api_keys");
+         if (it != object.end() && (*it).getValue().isObject())
+         {
+            for (const json::Object::Member& member : (*it).getValue().getObject())
+            {
+               if (member.getValue().isString() && !member.getValue().getString().empty())
+                  config.apiKeys[member.getName()] = member.getValue().getString();
+            }
+         }
+
+         // configs written before keys were saved per provider held one key
+         // for the configured provider
+         std::string legacyKey;
+         json::readObject(object, "api_key", legacyKey);
+         if (!legacyKey.empty() && isKnownProvider(config.provider) &&
+             !config.apiKeys.count(keySlot(config)))
+         {
+            config.apiKeys[keySlot(config)] = legacyKey;
+         }
       }
    }
 
@@ -161,13 +216,17 @@ Error writeConfig(const Config& config)
    if (error)
       return error;
 
+   json::Object keys;
+   for (const auto& entry : config.apiKeys)
+      keys[entry.first] = entry.second;
+
    json::Object object;
    object["provider"] = config.provider;
    object["model"] = config.model;
    object["base_url"] = config.baseUrl;
-   object["api_key"] = config.apiKey;
+   object["api_keys"] = keys;
 
-   // create the file empty and restrict it to the user before the key is
+   // create the file empty and restrict it to the user before any key is
    // written into it
    if (!configPath.exists())
    {
@@ -185,16 +244,6 @@ Error writeConfig(const Config& config)
    return writeStringToFile(configPath, object.writeFormatted());
 }
 
-std::string effectiveBaseUrl(const Config& config)
-{
-   std::string baseUrl = string_utils::trimWhitespace(config.baseUrl);
-   if (baseUrl.empty())
-      baseUrl = defaultBaseUrl(config.provider);
-   while (!baseUrl.empty() && baseUrl[baseUrl.size() - 1] == '/')
-      baseUrl.erase(baseUrl.size() - 1);
-   return baseUrl;
-}
-
 std::string effectiveModel(const Config& config)
 {
    std::string model = string_utils::trimWhitespace(config.model);
@@ -205,10 +254,11 @@ std::string effectiveModel(const Config& config)
 
 std::string effectiveApiKey(const Config& config, std::string* pSource)
 {
-   if (!config.apiKey.empty())
+   auto it = config.apiKeys.find(keySlot(config));
+   if (it != config.apiKeys.end() && !it->second.empty())
    {
       *pSource = "saved";
-      return config.apiKey;
+      return it->second;
    }
 
    std::string envKey = core::system::getenv(environmentKeyName(config.provider));
@@ -235,6 +285,12 @@ json::Object configAsJson(const Config& config)
    std::string keySource;
    std::string apiKey = effectiveApiKey(config, &keySource);
 
+   // which slots hold a saved key (never the keys themselves), so the
+   // settings dialog can say whether a key is needed for each choice
+   json::Array savedKeySlots;
+   for (const auto& entry : config.apiKeys)
+      savedKeySlots.push_back(entry.first);
+
    json::Object result;
    result["provider"] = config.provider;
    result["model"] = effectiveModel(config);
@@ -242,6 +298,7 @@ json::Object configAsJson(const Config& config)
    result["has_api_key"] = !apiKey.empty();
    result["api_key_source"] = keySource;
    result["api_key_env_var"] = environmentKeyName(config.provider);
+   result["saved_key_slots"] = savedKeySlots;
    return result;
 }
 
@@ -253,8 +310,9 @@ Error aiChatGetConfig(const json::JsonRpcRequest& request,
 }
 
 // Parameters: provider, model, base URL, API key. The API key is optional:
-// null keeps the saved key, an empty string clears it, and anything else
-// replaces it. The key is never echoed back to the client.
+// null keeps the key saved for this provider (or custom endpoint), an empty
+// string removes it, and anything else replaces it. Keys are never echoed
+// back to the client.
 Error aiChatSetConfig(const json::JsonRpcRequest& request,
                       json::JsonRpcResponse* pResponse)
 {
@@ -267,17 +325,18 @@ Error aiChatSetConfig(const json::JsonRpcRequest& request,
       return Error(json::errc::ParamInvalid, ERROR_LOCATION);
 
    Config config = readConfig();
-
-   // a key saved for one provider is meaningless for another
-   if (config.provider != provider)
-      config.apiKey.clear();
-
    config.provider = provider;
    config.model = string_utils::trimWhitespace(model);
    config.baseUrl = string_utils::trimWhitespace(baseUrl);
 
    if (request.params.getSize() > 3 && request.params[3].isString())
-      config.apiKey = string_utils::trimWhitespace(request.params[3].getString());
+   {
+      std::string apiKey = string_utils::trimWhitespace(request.params[3].getString());
+      if (apiKey.empty())
+         config.apiKeys.erase(keySlot(config));
+      else
+         config.apiKeys[keySlot(config)] = apiKey;
+   }
 
    error = writeConfig(config);
    if (error)

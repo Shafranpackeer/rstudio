@@ -34,4 +34,17 @@ public class AiChatConfig extends JavaScriptObject
    /** One of "saved", "environment", or "none". */
    public final native String getApiKeySource() /*-{ return this.api_key_source || "none"; }-*/;
    public final native String getApiKeyEnvVar() /*-{ return this.api_key_env_var || ""; }-*/;
+
+   /**
+    * True when a key is saved for the given key slot: the provider name for
+    * Anthropic and OpenAI, or "custom|<base url>" for custom endpoints (see
+    * keySlot() in SessionAiChat.cpp).
+    */
+   public final native boolean hasSavedKey(String slot) /*-{
+      var slots = this.saved_key_slots || [];
+      for (var i = 0; i < slots.length; i++)
+         if (slots[i] === slot)
+            return true;
+      return false;
+   }-*/;
 }
