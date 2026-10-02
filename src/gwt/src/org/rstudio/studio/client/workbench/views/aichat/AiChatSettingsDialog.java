@@ -78,6 +78,10 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
       service_.addChangeHandler(event -> onServiceChanged());
       serviceLabel_ = new FormLabel(constants_.serviceLabel(), service_);
 
+      serviceNote_ = new Label();
+      serviceNote_.getElement().getStyle().setProperty("maxWidth", "380px");
+      serviceNote_.getElement().getStyle().setFontSize(11, Unit.PX);
+
       model_ = new TextBox();
       model_.setWidth("300px");
 
@@ -129,6 +133,7 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
 
       panel.add(serviceLabel_);
       panel.add(service_);
+      panel.add(serviceNote_);
       serviceSpacer_ = spacer();
       panel.add(serviceSpacer_);
       boolean isCustom = StringUtil.equals(selectedProvider(), AiChatConfig.PROVIDER_CUSTOM);
@@ -269,6 +274,9 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
 
       serviceLabel_.setVisible(isCustom);
       service_.setVisible(isCustom);
+      boolean hasNote = preset != null && preset.note != null;
+      serviceNote_.setText(hasNote ? preset.note : "");
+      serviceNote_.setVisible(hasNote);
       if (serviceSpacer_ != null)
          serviceSpacer_.setVisible(isCustom);
       toolsHelp_.setVisible(isCustom);
@@ -358,20 +366,33 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
    {
       Preset(String label, String baseUrl, String modelHint, boolean local)
       {
+         this(label, baseUrl, modelHint, local, null);
+      }
+
+      Preset(String label, String baseUrl, String modelHint, boolean local, String note)
+      {
          this.label = label;
          this.baseUrl = baseUrl;
          this.modelHint = modelHint;
          this.local = local;
+         this.note = note;
       }
 
       final String label;
       final String baseUrl;
       final String modelHint;
       final boolean local;
+
+      // setup advice shown under the service list, if any
+      final String note;
    }
+
+   // declared before PRESETS, which uses it during static initialization
+   private static final AiChatConstants constants_ = GWT.create(AiChatConstants.class);
 
    private static final Preset[] PRESETS = new Preset[] {
       new Preset("Ollama (local)", "http://localhost:11434/v1", "e.g. llama3.1, qwen2.5-coder", true), //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+      new Preset("Jan (local)", "http://localhost:1337/v1", "the model ID shown in Jan", true, constants_.janNote()), //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
       new Preset("LM Studio (local)", "http://localhost:1234/v1", "the model loaded in LM Studio", true), //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
       new Preset("OpenRouter", "https://openrouter.ai/api/v1", "e.g. anthropic/claude-sonnet-4.5", false), //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
       new Preset("Google Gemini", "https://generativelanguage.googleapis.com/v1beta/openai", "e.g. gemini-2.5-flash", false), //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
@@ -385,6 +406,7 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
    private final AiChatConfig config_;
    private final ListBox service_;
    private final FormLabel serviceLabel_;
+   private final Label serviceNote_;
    private Widget serviceSpacer_;
    private final FormLabel apiKeyLabel_;
    private final Label toolsHelp_;
@@ -396,5 +418,4 @@ public class AiChatSettingsDialog extends ModalDialog<AiChatSettingsDialog.Resul
    private final CheckBox removeKey_;
    private final Label customHelp_;
 
-   private static final AiChatConstants constants_ = GWT.create(AiChatConstants.class);
 }

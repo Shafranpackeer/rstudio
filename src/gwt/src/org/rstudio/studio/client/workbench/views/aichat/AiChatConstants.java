@@ -162,6 +162,9 @@ public interface AiChatConstants extends com.google.gwt.i18n.client.Messages
    @DefaultMessage("Pick a service to fill in its address, or choose Other for any server with an OpenAI-compatible /chat/completions endpoint (vLLM, LiteLLM, a company gateway, and so on). Paste that service''s API key below.")
    String customHelp();
 
+   @DefaultMessage("In Jan, open Settings > Local API Server and click Start Server. If you set an API key there, enter the same key below.")
+   String janNote();
+
    @DefaultMessage("Service:")
    String serviceLabel();
 
