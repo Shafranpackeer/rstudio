@@ -180,6 +180,8 @@ import org.rstudio.studio.client.workbench.prefs.views.PythonInterpreters;
 import org.rstudio.studio.client.workbench.projects.RenvAction;
 import org.rstudio.studio.client.workbench.snippets.model.SnippetData;
 import org.rstudio.studio.client.workbench.views.buildtools.model.BookdownFormats;
+import org.rstudio.studio.client.workbench.views.aichat.model.AiChatConfig;
+import org.rstudio.studio.client.workbench.views.aichat.model.AiChatHttpResult;
 import org.rstudio.studio.client.workbench.views.chat.server.ChatServerOperations;
 import org.rstudio.studio.client.workbench.views.connections.model.ConnectionId;
 import org.rstudio.studio.client.workbench.views.connections.model.ConnectionObjectSpecifier;
@@ -7117,6 +7119,63 @@ public class RemoteServer implements Server
    {
       sendRequest(RPC_SCOPE, "assistant_notify_installed", requestCallback);
    };
+
+   @Override
+   public void aiChatGetConfig(ServerRequestCallback<AiChatConfig> requestCallback)
+   {
+      sendRequest(RPC_SCOPE, "ai_chat_get_config", requestCallback);
+   }
+
+   @Override
+   public void aiChatSetConfig(String provider,
+                               String model,
+                               String baseUrl,
+                               String apiKey,
+                               boolean jevEnabled,
+                               String jevApiKey,
+                               ServerRequestCallback<AiChatConfig> requestCallback)
+   {
+      JSONArray params = new JSONArrayBuilder()
+            .add(provider)
+            .add(model)
+            .add(baseUrl)
+            .get();
+      params.set(3, apiKey == null ? JSONNull.getInstance() : new JSONString(apiKey));
+      params.set(4, JSONBoolean.getInstance(jevEnabled));
+      params.set(5, jevApiKey == null ? JSONNull.getInstance() : new JSONString(jevApiKey));
+      sendRequest(RPC_SCOPE, "ai_chat_set_config", params, requestCallback);
+   }
+
+   @Override
+   public void aiChatJevRequest(String body,
+                                ServerRequestCallback<AiChatHttpResult> requestCallback)
+   {
+      JSONArray params = new JSONArrayBuilder()
+            .add(body)
+            .get();
+      sendRequest(RPC_SCOPE, "ai_chat_jev_request", params, requestCallback);
+   }
+
+   @Override
+   public void aiChatSendRequest(String body,
+                                 ServerRequestCallback<AiChatHttpResult> requestCallback)
+   {
+      JSONArray params = new JSONArrayBuilder()
+            .add(body)
+            .get();
+      sendRequest(RPC_SCOPE, "ai_chat_send_request", params, requestCallback);
+   }
+
+   @Override
+   public void aiChatExecuteTool(String name,
+                                 JavaScriptObject input,
+                                 ServerRequestCallback<String> requestCallback)
+   {
+      JSONArray params = new JSONArray();
+      params.set(0, new JSONString(name));
+      params.set(1, new JSONObject(input));
+      sendRequest(RPC_SCOPE, "ai_chat_execute_tool", params, requestCallback);
+   }
 
    @Override
    public void chatVerifyInstalled(ServerRequestCallback<ChatServerOperations.ChatVerifyInstalledResponse> requestCallback)

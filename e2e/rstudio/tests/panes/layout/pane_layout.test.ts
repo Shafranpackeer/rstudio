@@ -34,7 +34,7 @@ const TABSET2_PANE = '#rstudio_TabSet2_pane';
 
 const ALL_TAB_NAMES = [
   'Environment', 'History', 'Connections', 'Build', 'VCS', 'Tutorial',
-  'Files', 'Plots', 'Packages', 'Help', 'Viewer', 'Presentations', 'Posit Assistant',
+  'Files', 'Plots', 'Packages', 'Help', 'Viewer', 'Presentations', 'AI', 'Posit Assistant',
 ];
 
 // ---------------------------------------------------------------------------
@@ -238,7 +238,7 @@ test.describe.serial('Pane Layout dialog (#test-automation-pane-layout)', { tag:
     await verifyQuadrantTabs(page, PL_RIGHT_TOP,
       ['Environment', 'History', 'Connections', 'Build', 'VCS', 'Tutorial']);
     await verifyQuadrantTabs(page, PL_RIGHT_BOTTOM,
-      ['Files', 'Plots', 'Packages', 'Help', 'Viewer', 'Presentations']);
+      ['Files', 'Plots', 'Packages', 'Help', 'Viewer', 'Presentations', 'AI']);
     await verifyQuadrantTabs(page, PL_SIDEBAR, ['Sidebar on Left']);
 
     await expect(page.locator(PL_SIDEBAR_VISIBLE)).not.toBeChecked();
@@ -303,7 +303,7 @@ test.describe.serial('Pane Layout dialog (#test-automation-pane-layout)', { tag:
     for (const tab of ['Environment', 'History', 'Connections', 'Build', 'VCS', 'Tutorial']) {
       expect(states[tab], `${tab} should be checked in TabSet1`).toBe(true);
     }
-    for (const tab of ['Files', 'Plots', 'Packages', 'Help', 'Viewer', 'Presentations', 'Posit Assistant']) {
+    for (const tab of ['Files', 'Plots', 'Packages', 'Help', 'Viewer', 'Presentations', 'AI', 'Posit Assistant']) {
       expect(states[tab], `${tab} should be unchecked in TabSet1`).toBe(false);
     }
 
@@ -315,7 +315,7 @@ test.describe.serial('Pane Layout dialog (#test-automation-pane-layout)', { tag:
 
     const states = await getTabCheckedState(page, PL_RIGHT_BOTTOM, ALL_TAB_NAMES);
 
-    for (const tab of ['Files', 'Plots', 'Packages', 'Help', 'Viewer', 'Presentations']) {
+    for (const tab of ['Files', 'Plots', 'Packages', 'Help', 'Viewer', 'Presentations', 'AI']) {
       expect(states[tab], `${tab} should be checked in TabSet2`).toBe(true);
     }
     for (const tab of ['Environment', 'History', 'Connections', 'Build', 'VCS', 'Tutorial', 'Posit Assistant']) {
@@ -412,7 +412,7 @@ test.describe.serial('Pane Layout dialog (#test-automation-pane-layout)', { tag:
     await openPaneLayoutOptions(page);
 
     const initialTabSet1 = ['Environment', 'History', 'Connections', 'Build', 'VCS', 'Tutorial'];
-    const initialTabSet2 = ['Files', 'Plots', 'Packages', 'Help', 'Viewer', 'Presentations'];
+    const initialTabSet2 = ['Files', 'Plots', 'Packages', 'Help', 'Viewer', 'Presentations', 'AI'];
     await verifyQuadrantTabs(page, PL_RIGHT_TOP, initialTabSet1);
     await verifyQuadrantTabs(page, PL_RIGHT_BOTTOM, initialTabSet2);
 
@@ -497,7 +497,7 @@ test.describe.serial('Pane Layout dialog (#test-automation-pane-layout)', { tag:
     await verifyQuadrantTabs(page, PL_RIGHT_TOP,
       ['Environment', 'History', 'Connections', 'Build', 'VCS', 'Tutorial']);
     await verifyQuadrantTabs(page, PL_RIGHT_BOTTOM,
-      ['Files', 'Plots', 'Packages', 'Help', 'Viewer', 'Presentations']);
+      ['Files', 'Plots', 'Packages', 'Help', 'Viewer', 'Presentations', 'AI']);
 
     await closePaneLayoutOptions(page);
   });

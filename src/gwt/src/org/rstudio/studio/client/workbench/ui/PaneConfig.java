@@ -86,6 +86,7 @@ public class PaneConfig extends UserPrefsAccessor.Panes
       tabSet2.push(PaneManager.HELP_PANE);
       tabSet2.push(PaneManager.VIEWER_PANE);
       tabSet2.push(PaneManager.PRESENTATIONS_PANE);
+      tabSet2.push(PaneManager.AI_CHAT_PANE);
 
       JsArrayString hiddenTabSet = createArray().cast();
 
@@ -133,7 +134,7 @@ public class PaneConfig extends UserPrefsAccessor.Panes
                            PaneManager.PLOTS_PANE, PaneManager.CONNECTIONS_PANE,
                            PaneManager.PACKAGES_PANE, PaneManager.HELP_PANE, PaneManager.BUILD_PANE,
                            PaneManager.VCS_PANE, PaneManager.TUTORIAL_PANE, PaneManager.VIEWER_PANE,
-                           PaneManager.CHAT_PANE,
+                           PaneManager.CHAT_PANE, PaneManager.AI_CHAT_PANE,
                            PaneManager.PRESENTATIONS_PANE, PaneManager.PRESENTATION_PANE};
    }
 
@@ -186,6 +187,10 @@ public class PaneConfig extends UserPrefsAccessor.Panes
       if (StringUtil.equals(paneId, PaneManager.CHAT_PANE))
       {
          return "Posit Assistant"; //$NON-NLS-1$
+      }
+      if (StringUtil.equals(paneId, PaneManager.AI_CHAT_PANE))
+      {
+         return "AI"; //$NON-NLS-1$
       }
       return paneId;
    }
@@ -245,6 +250,17 @@ public class PaneConfig extends UserPrefsAccessor.Panes
       replaceObsoleteTabs(ts2);
       replaceObsoleteTabs(sidebar);
 
+      // The AI tab was added after these configs were first saved; give it a
+      // home (the end of the second tabset) when it isn't placed anywhere yet
+      JsArrayString hidden = getHiddenTabSet();
+      if (!contains(ts1, PaneManager.AI_CHAT_PANE) &&
+          !contains(ts2, PaneManager.AI_CHAT_PANE) &&
+          !contains(sidebar, PaneManager.AI_CHAT_PANE) &&
+          !contains(hidden, PaneManager.AI_CHAT_PANE))
+      {
+         ts2.push(PaneManager.AI_CHAT_PANE);
+      }
+
       // Presentation tab must always be at the end of the ts1 tabset (this
       // is so that activating it works even in the presence of optionally
       // visible tabs). This is normally an invariant but for a time during
@@ -293,6 +309,16 @@ public class PaneConfig extends UserPrefsAccessor.Panes
       }
 
       return true;
+   }
+
+   private static boolean contains(JsArrayString array, String value)
+   {
+      if (array == null)
+         return false;
+      for (int i = 0; i < array.length(); i++)
+         if (StringUtil.equals(array.get(i), value))
+            return true;
+      return false;
    }
 
    private static boolean isSubset(Set<String> set, Iterable<String> possibleSubset)

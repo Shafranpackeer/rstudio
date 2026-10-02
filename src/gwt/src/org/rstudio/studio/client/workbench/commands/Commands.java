@@ -574,6 +574,8 @@ public abstract class
    // Chat
    public abstract AppCommand activateChat();
    public abstract AppCommand layoutZoomChat();
+   public abstract AppCommand activateAiChat();
+   public abstract AppCommand layoutZoomAiChat();
 
    // Viewer
    public abstract AppCommand activateViewer();

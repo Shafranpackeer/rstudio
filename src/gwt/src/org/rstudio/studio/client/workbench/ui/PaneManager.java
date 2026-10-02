@@ -99,7 +99,8 @@ public class PaneManager
 
    public enum Tab {
       History, Files, Plots, Packages, Help, VCS, Tutorial, Build, Connections,
-      Presentation, Presentations, Environment, Viewer, Source, Console, SourceColumn, Chat
+      Presentation, Presentations, Environment, Viewer, Source, Console, SourceColumn, Chat,
+      AiChat
    }
 
    public static final String LEFT_COLUMN = "left";
@@ -320,6 +321,7 @@ public class PaneManager
                       @Named(DATA_OUTPUT_PANE) final WorkbenchTab dataTab,
                       @Named(TUTORIAL_PANE) final WorkbenchTab tutorialTab,
                       @Named(CHAT_PANE) final WorkbenchTab chatTab,
+                      @Named(AI_CHAT_PANE) final WorkbenchTab aiChatTab,
                       final MarkersOutputTab markersTab,
                       final FindOutputTab findOutputTab,
                       OptionsLoader.Shim optionsLoader,
@@ -360,6 +362,7 @@ public class PaneManager
       dataTab_ = dataTab;
       tutorialTab_ = tutorialTab;
       chatTab_ = chatTab;
+      aiChatTab_ = aiChatTab;
       pGlobalDisplay_ = pGlobalDisplay;
 
       binder.bind(commands, this);
@@ -2183,6 +2186,8 @@ public class PaneManager
             return tutorialTab_;
          case Chat:
             return chatTab_;
+         case AiChat:
+            return aiChatTab_;
          case Build:
             return buildTab_;
          case Presentation:
@@ -2221,6 +2226,7 @@ public class PaneManager
       tabs.add(viewerTab_);
       if (paiUtil_.isPositAssistantEnabled())
          tabs.add(chatTab_);
+      tabs.add(aiChatTab_);
       tabs.add(connectionsTab_);
       tabs.add(jobsTab_);
       tabs.add(launcherJobsTab_);
@@ -3041,6 +3047,7 @@ public class PaneManager
          // Presentation tab
          case Presentations:
          case Connections:
+         case AiChat:
             return getTab(tab).getTitle();
          default:
             return tab.toString();
@@ -3065,6 +3072,8 @@ public class PaneManager
          return Tab.Tutorial;
       if (name.equalsIgnoreCase(CHAT_PANE))
          return Tab.Chat;
+      if (name.equalsIgnoreCase(AI_CHAT_PANE))
+         return Tab.AiChat;
       if (name.equalsIgnoreCase(BUILD_PANE))
          return Tab.Build;
       if (name.equalsIgnoreCase(PRESENTATION_PANE))
@@ -3107,6 +3116,7 @@ public class PaneManager
       case VCS:          return commands_.layoutZoomVcs();
       case Tutorial:     return commands_.layoutZoomTutorial();
       case Chat:         return commands_.layoutZoomChat();
+      case AiChat:       return commands_.layoutZoomAiChat();
       case Viewer:       return commands_.layoutZoomViewer();
       case Connections:  return commands_.layoutZoomConnections();
       case Presentations: return commands_.layoutZoomPresentation2();
@@ -3239,6 +3249,7 @@ public class PaneManager
       commands.add(commands_.layoutZoomPresentation2());
       if (paiUtil_.isPositAssistantEnabled())
          commands.add(commands_.layoutZoomChat());
+      commands.add(commands_.layoutZoomAiChat());
 
       return commands;
    }
@@ -3302,6 +3313,7 @@ public class PaneManager
    private final WorkbenchTab dataTab_;
    private final WorkbenchTab tutorialTab_;
    private final WorkbenchTab chatTab_;
+   private final WorkbenchTab aiChatTab_;
    private final OptionsLoader.Shim optionsLoader_;
    private final Provider<GlobalDisplay> pGlobalDisplay_;
    private final MainSplitPanel panel_;
@@ -3369,6 +3381,9 @@ public class PaneManager
    public static final String DATA_OUTPUT_PANE = "Data Output"; //$NON-NLS-1$
    public static final String TUTORIAL_PANE = "Tutorial"; //$NON-NLS-1$
    public static final String CHAT_PANE = "Chat"; //$NON-NLS-1$
+   // must match the Tab enum name, since pane configs are mapped back to tabs
+   // with Enum.valueOf()
+   public static final String AI_CHAT_PANE = "AiChat"; //$NON-NLS-1$
    public static final String SOURCE_COLUMN = "SourceColumn"; //$NON-NLS-1$
    public static final String FIND_PANE = "Find"; //$NON-NLS-1$
    public static final String MARKERS_PANE = "Markers"; //$NON-NLS-1$
