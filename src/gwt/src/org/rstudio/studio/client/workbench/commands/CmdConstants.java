@@ -702,6 +702,12 @@ public interface CmdConstants extends Constants {
     @DefaultStringValue("Show Pos_it Assistant") // $NON-NLS-1$
     String activateChatMenuLabel();
     
+    // activateAiChat
+    @DefaultStringValue("Show AI Pane") // $NON-NLS-1$
+    String activateAiChatLabel();
+    @DefaultStringValue("Show A_I") // $NON-NLS-1$
+    String activateAiChatMenuLabel();
+    
     // activateBackgroundJobs
     @DefaultStringValue("Show Background Jobs Pane") // $NON-NLS-1$
     String activateBackgroundJobsLabel();
@@ -833,6 +839,12 @@ public interface CmdConstants extends Constants {
     String layoutZoomChatLabel();
     @DefaultStringValue("Zoom Pos_it Assistant") // $NON-NLS-1$
     String layoutZoomChatMenuLabel();
+    
+    // layoutZoomAiChat
+    @DefaultStringValue("Zoom AI") // $NON-NLS-1$
+    String layoutZoomAiChatLabel();
+    @DefaultStringValue("Zoom A_I") // $NON-NLS-1$
+    String layoutZoomAiChatMenuLabel();
     
     // layoutZoomBuild
     @DefaultStringValue("Zoom Build") // $NON-NLS-1$

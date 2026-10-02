@@ -1,0 +1,206 @@
+@external rstudio-themes-dark;
+
+.root {
+   font-size: 13px;
+}
+
+.transcript {
+   padding: 8px 10px;
+}
+
+.welcome {
+   padding: 16px 12px;
+   line-height: 1.45;
+}
+
+.welcomeTitle {
+   font-size: 15px;
+   font-weight: bold;
+   margin-bottom: 8px;
+}
+
+.welcomeText {
+   opacity: 0.85;
+   margin-bottom: 12px;
+}
+
+.message {
+   margin: 6px 0 10px 0;
+   line-height: 1.45;
+   word-wrap: break-word;
+   overflow-wrap: anywhere;
+}
+
+.userMessage {
+   background-color: rgba(128, 128, 128, 0.13);
+   border-radius: 6px;
+   padding: 6px 9px;
+   white-space: pre-wrap;
+}
+
+.speaker {
+   font-size: 11px;
+   font-weight: bold;
+   opacity: 0.7;
+   margin-bottom: 2px;
+}
+
+.assistantMessage p {
+   margin: 0 0 6px 0;
+}
+
+.assistantMessage code {
+   font-family: monospace;
+   background-color: rgba(128, 128, 128, 0.15);
+   border-radius: 3px;
+   padding: 0 3px;
+}
+
+.codeBlock {
+   margin: 6px 0;
+   border: 1px solid rgba(128, 128, 128, 0.3);
+   border-radius: 4px;
+   overflow: hidden;
+}
+
+.codeHeader {
+   display: flex;
+   justify-content: flex-end;
+   gap: 4px;
+   padding: 2px 4px;
+   background-color: rgba(128, 128, 128, 0.12);
+   font-size: 11px;
+}
+
+.codeHeader button {
+   font-size: 11px;
+   cursor: pointer;
+   background: transparent;
+   color: inherit;
+   border: 1px solid rgba(128, 128, 128, 0.4);
+   border-radius: 3px;
+   padding: 0 6px;
+}
+
+.codeLanguage {
+   margin-right: auto;
+   opacity: 0.7;
+   font-family: monospace;
+}
+
+.codeBlock pre,
+.toolDetails pre {
+   margin: 0;
+   padding: 6px 8px;
+   font-family: monospace;
+   font-size: 12px;
+   white-space: pre-wrap;
+   overflow-wrap: anywhere;
+   max-height: 400px;
+   overflow-y: auto;
+}
+
+.errorMessage {
+   color: #c33;
+   white-space: pre-wrap;
+}
+
+.rstudio-themes-dark .errorMessage {
+   color: #f88;
+}
+
+.infoMessage {
+   opacity: 0.7;
+   font-style: italic;
+}
+
+.toolCall {
+   margin: 6px 0;
+   border: 1px solid rgba(128, 128, 128, 0.35);
+   border-radius: 4px;
+   font-size: 12px;
+}
+
+.toolHeader {
+   display: flex;
+   align-items: center;
+   gap: 6px;
+   padding: 4px 8px;
+   cursor: pointer;
+}
+
+.toolName {
+   font-family: monospace;
+   font-weight: bold;
+}
+
+.toolSummary {
+   flex: 1;
+   overflow: hidden;
+   text-overflow: ellipsis;
+   white-space: nowrap;
+   opacity: 0.8;
+}
+
+.toolStatus {
+   opacity: 0.75;
+   white-space: nowrap;
+}
+
+.toolDetails {
+   border-top: 1px solid rgba(128, 128, 128, 0.25);
+}
+
+.toolDetailsLabel {
+   font-size: 11px;
+   opacity: 0.7;
+   padding: 4px 8px 0 8px;
+}
+
+.toolApproval {
+   display: flex;
+   gap: 6px;
+   padding: 6px 8px;
+   border-top: 1px solid rgba(128, 128, 128, 0.25);
+}
+
+.thinking {
+   opacity: 0.7;
+   font-style: italic;
+   margin: 4px 0;
+}
+
+.inputArea {
+   border-top: 1px solid rgba(128, 128, 128, 0.3);
+   padding: 6px 8px;
+   box-sizing: border-box;
+}
+
+.input {
+   width: 100%;
+   height: 64px;
+   box-sizing: border-box;
+   resize: none;
+   font-family: inherit;
+   font-size: 13px;
+   padding: 4px 6px;
+}
+
+.inputButtons {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   margin-top: 4px;
+}
+
+.autoApprove {
+   font-size: 11px;
+}
+
+.status {
+   font-size: 11px;
+   opacity: 0.8;
+   white-space: nowrap;
+   overflow: hidden;
+   text-overflow: ellipsis;
+}

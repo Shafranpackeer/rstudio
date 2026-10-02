@@ -315,6 +315,7 @@ See `/src/gwt/tools/i18n-helpers/README.md`.
             <cmd refid="layoutZoomVcs"/>
             <cmd refid="layoutZoomTutorial"/>
             <cmd refid="layoutZoomChat"/>
+            <cmd refid="layoutZoomAiChat"/>
             <cmd refid="layoutZoomBuild"/>
             <cmd refid="layoutZoomConnections"/>
             <cmd refid="layoutZoomPresentation2"/>
@@ -367,6 +368,7 @@ See `/src/gwt/tools/i18n-helpers/README.md`.
          <cmd refid="activateBuild"/>
          <cmd refid="activateConnections"/>
          <cmd refid="activateChat"/>
+         <cmd refid="activateAiChat"/>
          <menu label="Show Other _Panes">
             <cmd refid="activateTutorial"/>
             <cmd refid="activatePresentation"/>
@@ -1540,6 +1542,11 @@ See `/src/gwt/tools/i18n-helpers/README.md`.
         menuLabel="Show Pos_it Assistant"
         windowMode="main"/>
 
+   <cmd id="activateAiChat"
+        label="Show AI Pane"
+        menuLabel="Show A_I"
+        windowMode="main"/>
+
    <cmd id="activateBackgroundJobs"
         label="Show Background Jobs Pane"
         menuLabel = "Show Background _Jobs"
@@ -1659,6 +1666,12 @@ See `/src/gwt/tools/i18n-helpers/README.md`.
         checkable="true"
         label="Zoom Posit Assistant"
         menuLabel="Zoom Pos_it Assistant"
+        windowMode="main"/>
+
+   <cmd id="layoutZoomAiChat"
+        checkable="true"
+        label="Zoom AI"
+        menuLabel="Zoom A_I"
         windowMode="main"/>
 
    <cmd id="layoutZoomBuild"

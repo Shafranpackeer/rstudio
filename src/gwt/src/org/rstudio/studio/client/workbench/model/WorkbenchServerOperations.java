@@ -36,6 +36,7 @@ import org.rstudio.studio.client.server.VoidResponse;
 import org.rstudio.studio.client.workbench.addins.AddinsServerOperations;
 import org.rstudio.studio.client.workbench.prefs.views.PythonServerOperations;
 import org.rstudio.studio.client.workbench.snippets.SnippetServerOperations;
+import org.rstudio.studio.client.workbench.views.aichat.model.AiChatServerOperations;
 import org.rstudio.studio.client.workbench.views.chat.server.ChatServerOperations;
 import org.rstudio.studio.client.workbench.views.choosefile.model.ChooseFileServerOperations;
 import org.rstudio.studio.client.workbench.views.connections.model.ConnectionsServerOperations;
@@ -93,6 +94,7 @@ public interface WorkbenchServerOperations extends ConsoleServerOperations,
                                                    ThemeServerOperations,
                                                    TutorialServerOperations,
                                                    ChatServerOperations,
+                                                   AiChatServerOperations,
                                                    PythonServerOperations,
                                                    Presentation2ServerOperations
 {   
